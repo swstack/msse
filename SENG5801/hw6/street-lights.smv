@@ -23,7 +23,7 @@ ASSIGN
 
   -- If pedestrian signal is recieved on the perpendicular crosswalk, transistion
     (colorOutput = Green & pedestrianSignal = TRUE)                           : Yellow;
-    (colorOutput = Green )                                       : Yellow;
+    timeout = 0                                                               : Yellow;
     -- colorOutput = Green : Yellow;
   -- When the other signal is Red, we will turn green
     otherSignal = Red & activeSignal = moduleName                             : Green;
@@ -34,7 +34,7 @@ ASSIGN
 
   next(timeout) :=
   case
-    timeout > 0 : timeout - 1;
+    timeout > 0 & colorOutput = Green: timeout - 1;
     timeout = 0 : 60;
     TRUE : timeout;
   esac;
@@ -72,15 +72,25 @@ SPEC AG((ewLight.colorOutput=Yellow | ewLight.colorOutput=Green | nsLight.colorO
 --(GREEN)It's always the case that if one light is red, the next state will be Green
 SPEC AG( nsLight.colorOutput = Red -> EF(ewLight.colorOutput=Green));  
 SPEC AG( ewLight.colorOutput = Red -> EF(nsLight.colorOutput=Green));  
---(BROKEN)There can never  be Green lights for both ew and ns at the same time 
+--There can never  be Green lights for both ew and ns at the same time 
 SPEC AG(nsLight.colorOutput=Green -> (ewLight.colorOutput=Red))
 SPEC AG(nsLight.colorOutput=Yellow -> (ewLight.colorOutput=Red))
+-- Proves that we stay green for some duration of time and do not immediately transistion every time.
+SPEC AF((ewLight.colorOutput=Green ) -> EX(ewLight.colorOutput=Green) & EX(EX(ewLight.colorOutput=Green)) & EX(EX(EX(ewLight.colorOutput=Green))))
+SPEC AF((nsLight.colorOutput=Green ) -> EX(nsLight.colorOutput=Green) & EX(EX(nsLight.colorOutput=Green)) & EX(EX(EX(nsLight.colorOutput=Green))))
 
 -- LIVELINESS
 SPEC AG(nsLight.colorOutput=Red -> AF(nsLight.colorOutput=Green))
 SPEC AG(nsLight.colorOutput=Green -> AF(nsLight.colorOutput=Red))
 SPEC AG(ewLight.colorOutput=Red -> AF(ewLight.colorOutput=Green))
 SPEC AG(ewLight.colorOutput=Green -> AF(ewLight.colorOutput=Red))
+
+-- SAFETY
+-- -- The lights can never both be green
+SPEC !AG(ewLight.colorOutput = Green & nsLight.colorOutput = Green)
+-- -- Grandma has at least 3 seconds to cross
+SPEC AF(nsPedestrianSignal=TRUE & nsLight.colorOutput=Red -> EX(nsLight.colorOutput=Green) & EX(EX(nsLight.colorOutput=Green)) & EX(EX(EX(nsLight.colorOutput=Green))))
+
 
 -- The light will transition to yellow and eventually red if the perpendicular pedestian crosswalk button is pressed
 SPEC AG( (ewPedestrianSignal=TRUE & nsLight.colorOutput=Green) -> AX(nsLight.colorOutput=Yellow));
