@@ -1,11 +1,16 @@
+
 ------------------------------
 --Controller  
-MODULE controller(moduleName, otherSignal, activeSignal, pedestrianSignal)
+MODULE lightController(moduleName, otherModuleName, otherSignal, activeSignal, pedestrianSignal)
 VAR
 colorOutput : {Red, Yellow, Green};
 
+timeout: 0..60;
+
 ASSIGN
 --  init(colorOutput) :=  Red;
+  init(timeout) := 60;
+
   next(colorOutput) :=  
 
   case
@@ -18,44 +23,70 @@ ASSIGN
 
   -- If pedestrian signal is recieved on the perpendicular crosswalk, transistion
     (colorOutput = Green & pedestrianSignal = TRUE)                           : Yellow;
+    (colorOutput = Green )                                       : Yellow;
     -- colorOutput = Green : Yellow;
   -- When the other signal is Red, we will turn green
-    otherSignal = Red & activeSignal = moduleName                                                      : Green;
+    otherSignal = Red & activeSignal = moduleName                             : Green;
 
   -- Catch other???
     TRUE                                                                      : colorOutput;
+  esac;
+
+  next(timeout) :=
+  case
+    timeout > 0 : timeout - 1;
+    timeout = 0 : 60;
+    TRUE : timeout;
+  esac;
+
+
+MODULE selector(ewColor, nsColor)
+VAR
+  activeSignal : {ew, ns};
+ASSIGN
+  next(activeSignal) :=
+  case
+    ewColor = Green: ns;
+    nsColor = Green: ew;
+    TRUE: activeSignal;
   esac;
 
 MODULE main    
 VAR
   ewPedestrianSignal : boolean;
   nsPedestrianSignal : boolean;
-  ewSignal : controller(ew, nsSignal.colorOutput, activeSignal, nsPedestrianSignal);
-  nsSignal : controller(ns, ewSignal.colorOutput, activeSignal, ewPedestrianSignal);
-  activeSignal : {ew, ns};
+  ewLight : lightController(ew, ns, nsLight.colorOutput, lightSwitcher.activeSignal, nsPedestrianSignal);
+  nsLight : lightController(ns, ew, ewLight.colorOutput, lightSwitcher.activeSignal, ewPedestrianSignal);
+  lightSwitcher : selector(ewLight.colorOutput, nsLight.colorOutput);
 
 ASSIGN
-  init(ewSignal.colorOutput) := Green;
-  init(nsSignal.colorOutput) := Red;
+  init(ewLight.colorOutput) := Green;
+  init(nsLight.colorOutput) := Red;
 
 --(RED)It's always the case that if one light is yellow, the next state will be Red
-SPEC AG(nsSignal.colorOutput=Yellow -> AX(ewSignal.colorOutput=Red));
-SPEC AG(ewSignal.colorOutput=Yellow -> AX(nsSignal.colorOutput=Red));
+SPEC AG(nsLight.colorOutput=Yellow -> AX(ewLight.colorOutput=Red));
+SPEC AG(ewLight.colorOutput=Yellow -> AX(nsLight.colorOutput=Red));
 --(YELLOW)It's always the case that if the opposite light is yellow or green (or if the current light is yellow), the current lights next state will be Red
-SPEC AG((nsSignal.colorOutput=Yellow | nsSignal.colorOutput=Green | ewSignal.colorOutput=Yellow) -> AX(ewSignal.colorOutput=Red));
-SPEC AG((ewSignal.colorOutput=Yellow | ewSignal.colorOutput=Green | nsSignal.colorOutput=Yellow) -> AX(nsSignal.colorOutput=Red));
+SPEC AG((nsLight.colorOutput=Yellow | nsLight.colorOutput=Green | ewLight.colorOutput=Yellow) -> AX(ewLight.colorOutput=Red));
+SPEC AG((ewLight.colorOutput=Yellow | ewLight.colorOutput=Green | nsLight.colorOutput=Yellow) -> AX(nsLight.colorOutput=Red));
 --(GREEN)It's always the case that if one light is red, the next state will be Green
-SPEC AG( nsSignal.colorOutput = Red -> EF(ewSignal.colorOutput=Green));  
-SPEC AG( ewSignal.colorOutput = Red -> EF(nsSignal.colorOutput=Green));  
+SPEC AG( nsLight.colorOutput = Red -> EF(ewLight.colorOutput=Green));  
+SPEC AG( ewLight.colorOutput = Red -> EF(nsLight.colorOutput=Green));  
 --(BROKEN)There can never  be Green lights for both ew and ns at the same time 
-SPEC AG(nsSignal.colorOutput=Green -> (ewSignal.colorOutput=Red))
-SPEC AG(nsSignal.colorOutput=Yellow -> (ewSignal.colorOutput=Red))
+SPEC AG(nsLight.colorOutput=Green -> (ewLight.colorOutput=Red))
+SPEC AG(nsLight.colorOutput=Yellow -> (ewLight.colorOutput=Red))
+
+-- LIVELINESS
+SPEC AG(nsLight.colorOutput=Red -> AF(nsLight.colorOutput=Green))
+SPEC AG(nsLight.colorOutput=Green -> AF(nsLight.colorOutput=Red))
+SPEC AG(ewLight.colorOutput=Red -> AF(ewLight.colorOutput=Green))
+SPEC AG(ewLight.colorOutput=Green -> AF(ewLight.colorOutput=Red))
 
 -- The light will transition to yellow and eventually red if the perpendicular pedestian crosswalk button is pressed
-SPEC AG( (ewPedestrianSignal=TRUE & nsSignal.colorOutput=Green) -> AX(nsSignal.colorOutput=Yellow));
-SPEC AG( (nsPedestrianSignal=TRUE & ewSignal.colorOutput=Green) -> AX(ewSignal.colorOutput=Yellow));
-SPEC AG( (ewPedestrianSignal=TRUE & nsSignal.colorOutput=Green) -> AF(nsSignal.colorOutput=Red));
-SPEC AG( (nsPedestrianSignal=TRUE & ewSignal.colorOutput=Green) -> AF(ewSignal.colorOutput=Red));
+SPEC AG( (ewPedestrianSignal=TRUE & nsLight.colorOutput=Green) -> AX(nsLight.colorOutput=Yellow));
+SPEC AG( (nsPedestrianSignal=TRUE & ewLight.colorOutput=Green) -> AX(ewLight.colorOutput=Yellow));
+SPEC AG( (ewPedestrianSignal=TRUE & nsLight.colorOutput=Green) -> AF(nsLight.colorOutput=Red));
+SPEC AG( (nsPedestrianSignal=TRUE & ewLight.colorOutput=Green) -> AF(ewLight.colorOutput=Red));
 
   
 
