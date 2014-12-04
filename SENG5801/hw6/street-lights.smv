@@ -1,0 +1,33 @@
+MODULE main    
+VAR
+  ewSignal : controller(nsSignal.colorOutput);
+  nsSignal : controller(ewSignal.colorOutput);
+  
+ --(RED)It's always the case that if one light is yellow, the next state will be Red
+   SPEC AG(nsSignal.colorOutput=Yellow -> AX(ewSignal.colorOutput=Red));
+   SPEC AG(ewSignal.colorOutput=Yellow -> AX(nsSignal.colorOutput=Red));
+ --(YELLOW)It's always the case that if the opposite light is yellow or green (or if the current light is yellow), the current lights next state will be Red
+   SPEC AG((nsSignal.colorOutput=Yellow | nsSignal.colorOutput=Green | ewSignal.colorOutput=Yellow) -> AX(ewSignal.colorOutput=Red));
+   SPEC AG((ewSignal.colorOutput=Yellow | ewSignal.colorOutput=Green | nsSignal.colorOutput=Yellow) -> AX(nsSignal.colorOutput=Red));
+ --(GREEN)It's always the case that if one light is red, the next state will be Green
+   SPEC AG( nsSignal.colorOutput = Red -> EX(ewSignal.colorOutput=Green));  
+   SPEC AG( ewSignal.colorOutput = Red -> EX(nsSignal.colorOutput=Green));  
+ --(BROKEN)There can never  be Green lights for both ew and ns at the same time 
+ --  SPEC AG(nsSignal.colorOutput=Green -> (ewSignal.colorOutput=Red));
+
+  
+------------------------------
+--Controller  
+  MODULE controller(otherSignal)
+  VAR
+  colorOutput : {Red, Yellow, Green};
+  
+  ASSIGN
+    init(colorOutput) :=  Red;
+    next(colorOutput) :=  
+      case
+        (otherSignal = Yellow | otherSignal = Green | colorOutput = Yellow)                                : Red;
+        colorOutput = Green                                                                                : Yellow;
+        otherSignal = Red                                                                                 : Green;
+        TRUE                                                                                            : colorOutput;
+      esac;
