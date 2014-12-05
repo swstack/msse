@@ -8,7 +8,7 @@
 --
 --  This module responsible for managing state of a single light.
 ------------------------------------------------------------------------------------
-MODULE TrafficLight(moduleName, otherModuleName, otherSignal, activeLight, pedestrianSignal)
+MODULE TrafficLight(name, otherLight, activeLight, pedestrianSignal)
   VAR
     currentState : {Red, Yellow, Green};
     timeout : 0..60;
@@ -20,9 +20,9 @@ MODULE TrafficLight(moduleName, otherModuleName, otherSignal, activeLight, pedes
     next(currentState) :=  
       case
         -- Always be Red if the other light is Yellow or Green
-        otherSignal = Yellow                      : Red;
+        otherLight = Yellow                       : Red;
 
-        otherSignal = Green                       : Red;
+        otherLight = Green                        : Red;
 
         -- Eventually Transition to Red if we are yellow
         currentState = Yellow                     : Red;
@@ -35,8 +35,8 @@ MODULE TrafficLight(moduleName, otherModuleName, otherSignal, activeLight, pedes
         timeout = 0                               : Yellow;
 
         -- When the other signal is Red, we will turn green
-        otherSignal = Red &
-        activeLight = moduleName                  : Green;
+        otherLight = Red &
+        activeLight = name                        : Green;
 
         -- Default Case
         TRUE                                      : currentState;
@@ -79,10 +79,20 @@ MODULE Controller(ewLight, nsLight)
 ------------------------------------------------------------------------------------
 MODULE main
   VAR
+
+    -- East/West Signals
     ewPedestrianSignal : boolean;
+    ewEmergencyVehicleSignal : boolean;
+    ewLoopSignal : boolean;
+
+    -- North/South Signals
     nsPedestrianSignal : boolean;
-    ewLight : TrafficLight(ew, ns, nsLight.currentState, controller.activeLight, nsPedestrianSignal);
-    nsLight : TrafficLight(ns, ew, ewLight.currentState, controller.activeLight, ewPedestrianSignal);
+    nsEmergencyVehicleSignal : boolean;
+    nsoopSignal : boolean;
+
+    -- Components of system (modules)
+    ewLight : TrafficLight(ew, nsLight.currentState, controller.activeLight, nsPedestrianSignal);
+    nsLight : TrafficLight(ns, ewLight.currentState, controller.activeLight, ewPedestrianSignal);
     controller : Controller(ewLight.currentState, nsLight.currentState);
 
   ASSIGN
