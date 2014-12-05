@@ -1,102 +1,129 @@
 
-------------------------------
---Controller  
-MODULE lightController(moduleName, otherModuleName, otherSignal, activeSignal, pedestrianSignal)
-VAR
-colorOutput : {Red, Yellow, Green};
+------------------------------------------------------------------------------------
+--  SENG 5801 - HW6 - Formal Street Light Model (NuSMV)
+------------------------------------------------------------------------------------
 
-timeout: 0..60;
+------------------------------------------------------------------------------------
+--  Module: TrafficLight
+--
+--  This module responsible for managing state of a single light.
+------------------------------------------------------------------------------------
+MODULE TrafficLight(moduleName, otherModuleName, otherSignal, activeLight, pedestrianSignal)
+  VAR
+    currentState : {Red, Yellow, Green};
+    timeout : 0..60;
 
-ASSIGN
---  init(colorOutput) :=  Red;
-  init(timeout) := 60;
+  ASSIGN
+    init(timeout) := 60;
 
-  next(colorOutput) :=  
+    -- 
+    next(currentState) :=  
+      case
+        -- Always be Red if the other light is Yellow or Green
+        otherSignal = Yellow                      : Red;
 
-  case
-  -- Always be Red if the other light is Yellow or Green
-    otherSignal = Yellow  : Red;
-    otherSignal = Green   : Red;
+        otherSignal = Green                       : Red;
 
-  -- Eventually Transition to Red if we are yellow
-    colorOutput = Yellow                                                      : Red;
+        -- Eventually Transition to Red if we are yellow
+        currentState = Yellow                     : Red;
 
-  -- If pedestrian signal is recieved on the perpendicular crosswalk, transistion
-    (colorOutput = Green & pedestrianSignal = TRUE)                           : Yellow;
-    timeout = 0                                                               : Yellow;
-    -- colorOutput = Green : Yellow;
-  -- When the other signal is Red, we will turn green
-    otherSignal = Red & activeSignal = moduleName                             : Green;
+        -- If pedestrian signal is recieved on the perpendicular crosswalk, transistion
+        currentState = Green &
+        pedestrianSignal = TRUE                   : Yellow;
 
-  -- Catch other???
-    TRUE                                                                      : colorOutput;
-  esac;
+        -- When the timeout hits 0, transition to Yellow
+        timeout = 0                               : Yellow;
 
-  next(timeout) :=
-  case
-    timeout > 0 & colorOutput = Green: timeout - 1;
-    timeout = 0 : 60;
-    TRUE : timeout;
-  esac;
+        -- When the other signal is Red, we will turn green
+        otherSignal = Red &
+        activeLight = moduleName                  : Green;
+
+        -- Default Case
+        TRUE                                      : currentState;
+      esac;
+
+    next(timeout) :=
+      case
+        timeout > 0 &
+        currentState = Green                      : timeout - 1;
+
+        timeout = 0                               : 60;
+
+        TRUE                                      : timeout;
+      esac;
 
 
-MODULE selector(ewColor, nsColor)
-VAR
-  activeSignal : {ew, ns};
-ASSIGN
-  next(activeSignal) :=
-  case
-    ewColor = Green: ns;
-    nsColor = Green: ew;
-    TRUE: activeSignal;
-  esac;
+------------------------------------------------------------------------------------
+--  Module: Controller
+--
+--  This component is responsible for managing the somewhat "mutually exclusive"
+--  traffic light state machines.  It keeps track of which traffic light is currently
+--  active and priority of events.
+------------------------------------------------------------------------------------
+MODULE Controller(ewLight, nsLight)
+  VAR
+    activeLight : {ew, ns};
+  ASSIGN
+    next(activeLight) :=
+      case
+        ewLight = Green                           : ns;
 
-MODULE main    
-VAR
-  ewPedestrianSignal : boolean;
-  nsPedestrianSignal : boolean;
-  ewLight : lightController(ew, ns, nsLight.colorOutput, lightSwitcher.activeSignal, nsPedestrianSignal);
-  nsLight : lightController(ns, ew, ewLight.colorOutput, lightSwitcher.activeSignal, ewPedestrianSignal);
-  lightSwitcher : selector(ewLight.colorOutput, nsLight.colorOutput);
+        nsLight = Green                           : ew;
 
-ASSIGN
-  init(ewLight.colorOutput) := Green;
-  init(nsLight.colorOutput) := Red;
+        TRUE: activeLight;
+      esac;
+
+
+------------------------------------------------------------------------------------
+--  Module: Main
+------------------------------------------------------------------------------------
+MODULE main
+  VAR
+    ewPedestrianSignal : boolean;
+    nsPedestrianSignal : boolean;
+    ewLight : TrafficLight(ew, ns, nsLight.currentState, controller.activeLight, nsPedestrianSignal);
+    nsLight : TrafficLight(ns, ew, ewLight.currentState, controller.activeLight, ewPedestrianSignal);
+    controller : Controller(ewLight.currentState, nsLight.currentState);
+
+  ASSIGN
+    init(ewLight.currentState) := Green;
+    init(nsLight.currentState) := Red;
+
+
+------------------------------------------------------------------------------------
+--  Specifictations/Requirements
+------------------------------------------------------------------------------------
 
 --(RED)It's always the case that if one light is yellow, the next state will be Red
-SPEC AG(nsLight.colorOutput=Yellow -> AX(ewLight.colorOutput=Red));
-SPEC AG(ewLight.colorOutput=Yellow -> AX(nsLight.colorOutput=Red));
+SPEC AG(nsLight.currentState=Yellow -> AX(ewLight.currentState=Red));
+SPEC AG(ewLight.currentState=Yellow -> AX(nsLight.currentState=Red));
 --(YELLOW)It's always the case that if the opposite light is yellow or green (or if the current light is yellow), the current lights next state will be Red
-SPEC AG((nsLight.colorOutput=Yellow | nsLight.colorOutput=Green | ewLight.colorOutput=Yellow) -> AX(ewLight.colorOutput=Red));
-SPEC AG((ewLight.colorOutput=Yellow | ewLight.colorOutput=Green | nsLight.colorOutput=Yellow) -> AX(nsLight.colorOutput=Red));
+SPEC AG((nsLight.currentState=Yellow | nsLight.currentState=Green | ewLight.currentState=Yellow) -> AX(ewLight.currentState=Red));
+SPEC AG((ewLight.currentState=Yellow | ewLight.currentState=Green | nsLight.currentState=Yellow) -> AX(nsLight.currentState=Red));
 --(GREEN)It's always the case that if one light is red, the next state will be Green
-SPEC AG( nsLight.colorOutput = Red -> EF(ewLight.colorOutput=Green));  
-SPEC AG( ewLight.colorOutput = Red -> EF(nsLight.colorOutput=Green));  
+SPEC AG( nsLight.currentState = Red -> EF(ewLight.currentState=Green));  
+SPEC AG( ewLight.currentState = Red -> EF(nsLight.currentState=Green));  
 --There can never  be Green lights for both ew and ns at the same time 
-SPEC AG(nsLight.colorOutput=Green -> (ewLight.colorOutput=Red))
-SPEC AG(nsLight.colorOutput=Yellow -> (ewLight.colorOutput=Red))
+SPEC AG(nsLight.currentState=Green -> (ewLight.currentState=Red))
+SPEC AG(nsLight.currentState=Yellow -> (ewLight.currentState=Red))
 -- Proves that we stay green for some duration of time and do not immediately transistion every time.
-SPEC AF((ewLight.colorOutput=Green ) -> EX(ewLight.colorOutput=Green) & EX(EX(ewLight.colorOutput=Green)) & EX(EX(EX(ewLight.colorOutput=Green))))
-SPEC AF((nsLight.colorOutput=Green ) -> EX(nsLight.colorOutput=Green) & EX(EX(nsLight.colorOutput=Green)) & EX(EX(EX(nsLight.colorOutput=Green))))
+SPEC AF((ewLight.currentState=Green ) -> EX(ewLight.currentState=Green) & EX(EX(ewLight.currentState=Green)) & EX(EX(EX(ewLight.currentState=Green))))
+SPEC AF((nsLight.currentState=Green ) -> EX(nsLight.currentState=Green) & EX(EX(nsLight.currentState=Green)) & EX(EX(EX(nsLight.currentState=Green))))
 
 -- LIVELINESS
-SPEC AG(nsLight.colorOutput=Red -> AF(nsLight.colorOutput=Green))
-SPEC AG(nsLight.colorOutput=Green -> AF(nsLight.colorOutput=Red))
-SPEC AG(ewLight.colorOutput=Red -> AF(ewLight.colorOutput=Green))
-SPEC AG(ewLight.colorOutput=Green -> AF(ewLight.colorOutput=Red))
+SPEC AG(nsLight.currentState=Red -> AF(nsLight.currentState=Green))
+SPEC AG(nsLight.currentState=Green -> AF(nsLight.currentState=Red))
+SPEC AG(ewLight.currentState=Red -> AF(ewLight.currentState=Green))
+SPEC AG(ewLight.currentState=Green -> AF(ewLight.currentState=Red))
 
 -- SAFETY
 -- -- The lights can never both be green
-SPEC !AG(ewLight.colorOutput = Green & nsLight.colorOutput = Green)
+SPEC !AG(ewLight.currentState = Green & nsLight.currentState = Green)
 -- -- Grandma has at least 3 seconds to cross
-SPEC AF(nsPedestrianSignal=TRUE & nsLight.colorOutput=Red -> EX(nsLight.colorOutput=Green) & EX(EX(nsLight.colorOutput=Green)) & EX(EX(EX(nsLight.colorOutput=Green))))
-
+SPEC AF(nsPedestrianSignal=TRUE & nsLight.currentState=Red -> EX(nsLight.currentState=Green) & EX(EX(nsLight.currentState=Green)) & EX(EX(EX(nsLight.currentState=Green))))
 
 -- The light will transition to yellow and eventually red if the perpendicular pedestian crosswalk button is pressed
-SPEC AG( (ewPedestrianSignal=TRUE & nsLight.colorOutput=Green) -> AX(nsLight.colorOutput=Yellow));
-SPEC AG( (nsPedestrianSignal=TRUE & ewLight.colorOutput=Green) -> AX(ewLight.colorOutput=Yellow));
-SPEC AG( (ewPedestrianSignal=TRUE & nsLight.colorOutput=Green) -> AF(nsLight.colorOutput=Red));
-SPEC AG( (nsPedestrianSignal=TRUE & ewLight.colorOutput=Green) -> AF(ewLight.colorOutput=Red));
-
-  
-
+SPEC AG( (ewPedestrianSignal=TRUE & nsLight.currentState=Green) -> AX(nsLight.currentState=Yellow));
+SPEC AG( (nsPedestrianSignal=TRUE & ewLight.currentState=Green) -> AX(ewLight.currentState=Yellow));
+SPEC AG( (ewPedestrianSignal=TRUE & nsLight.currentState=Green) -> AF(nsLight.currentState=Red));
+SPEC AG( (nsPedestrianSignal=TRUE & ewLight.currentState=Green) -> AF(ewLight.currentState=Red));
