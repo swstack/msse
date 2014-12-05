@@ -8,13 +8,15 @@
 --
 --  This module responsible for managing state of a single light.
 ------------------------------------------------------------------------------------
-MODULE TrafficLight(name, otherLight, activeLight, pedestrianSignal)
+MODULE TrafficLight(name, otherLight, activeLight, pedestrianSignal, loopSignal, oppositeEmergencyVehicleSignal)
   VAR
     currentState : {Red, Yellow, Green};
-    timeout : 0..60;
+    greenTimer : 0..60;
+    yellowTimer : 0..10;
 
   ASSIGN
-    init(timeout) := 60;
+    init(greenTimer) := 60;
+    init(yellowTimer) := 10;
 
     -- 
     next(currentState) :=  
@@ -25,14 +27,21 @@ MODULE TrafficLight(name, otherLight, activeLight, pedestrianSignal)
         otherLight = Green                        : Red;
 
         -- Eventually Transition to Red if we are yellow
-        currentState = Yellow                     : Red;
+        currentState = Yellow &
+        yellowTimer = 0                           : Red;
 
         -- If pedestrian signal is recieved on the perpendicular crosswalk, transistion
         currentState = Green &
         pedestrianSignal = TRUE                   : Yellow;
 
+        currentState = Green &
+        loopSignal = TRUE                         : Yellow;
+
+        currentState = Green &
+        oppositeEmergencyVehicleSignal = TRUE     : Yellow;
+
         -- When the timeout hits 0, transition to Yellow
-        timeout = 0                               : Yellow;
+        greenTimer = 0                            : Yellow;
 
         -- When the other signal is Red, we will turn green
         otherLight = Red &
@@ -42,14 +51,26 @@ MODULE TrafficLight(name, otherLight, activeLight, pedestrianSignal)
         TRUE                                      : currentState;
       esac;
 
-    next(timeout) :=
+    next(greenTimer) :=
       case
-        timeout > 0 &
-        currentState = Green                      : timeout - 1;
 
-        timeout = 0                               : 60;
+        greenTimer > 0 &
+        currentState = Green                      : greenTimer - 1;
 
-        TRUE                                      : timeout;
+        greenTimer = 0                            : 60;
+
+        TRUE                                      : greenTimer;
+      esac;
+
+    next(yellowTimer):=
+      case
+
+        yellowTimer > 0 &
+        currentState = Yellow                     : yellowTimer - 1;
+
+        yellowTimer = 0                           : 10;
+
+        TRUE                                      : yellowTimer;
       esac;
 
 
@@ -88,11 +109,11 @@ MODULE main
     -- North/South Signals
     nsPedestrianSignal : boolean;
     nsEmergencyVehicleSignal : boolean;
-    nsoopSignal : boolean;
+    nsLoopSignal : boolean;
 
     -- Components of system (modules)
-    ewLight : TrafficLight(ew, nsLight.currentState, controller.activeLight, nsPedestrianSignal);
-    nsLight : TrafficLight(ns, ewLight.currentState, controller.activeLight, ewPedestrianSignal);
+    ewLight : TrafficLight(ew, nsLight.currentState, controller.activeLight, nsPedestrianSignal, nsLoopSignal, nsEmergencyVehicleSignal);
+    nsLight : TrafficLight(ns, ewLight.currentState, controller.activeLight, ewPedestrianSignal, ewLoopSignal, ewEmergencyVehicleSignal);
     controller : Controller(ewLight.currentState, nsLight.currentState);
 
   ASSIGN
@@ -104,36 +125,48 @@ MODULE main
 --  Specifictations/Requirements
 ------------------------------------------------------------------------------------
 
---(RED)It's always the case that if one light is yellow, the next state will be Red
-SPEC AG(nsLight.currentState=Yellow -> AX(ewLight.currentState=Red));
-SPEC AG(ewLight.currentState=Yellow -> AX(nsLight.currentState=Red));
---(YELLOW)It's always the case that if the opposite light is yellow or green (or if the current light is yellow), the current lights next state will be Red
-SPEC AG((nsLight.currentState=Yellow | nsLight.currentState=Green | ewLight.currentState=Yellow) -> AX(ewLight.currentState=Red));
-SPEC AG((ewLight.currentState=Yellow | ewLight.currentState=Green | nsLight.currentState=Yellow) -> AX(nsLight.currentState=Red));
---(GREEN)It's always the case that if one light is red, the next state will be Green
-SPEC AG( nsLight.currentState = Red -> EF(ewLight.currentState=Green));  
-SPEC AG( ewLight.currentState = Red -> EF(nsLight.currentState=Green));  
---There can never  be Green lights for both ew and ns at the same time 
+-- If one road is Green or Yellow, the other must be Red 
 SPEC AG(nsLight.currentState=Green -> (ewLight.currentState=Red))
 SPEC AG(nsLight.currentState=Yellow -> (ewLight.currentState=Red))
--- Proves that we stay green for some duration of time and do not immediately transistion every time.
+
+-- Proves that we stay green for some duration of time and do not immediately transistion every time. (For debugging)
 SPEC AF((ewLight.currentState=Green ) -> EX(ewLight.currentState=Green) & EX(EX(ewLight.currentState=Green)) & EX(EX(EX(ewLight.currentState=Green))))
 SPEC AF((nsLight.currentState=Green ) -> EX(nsLight.currentState=Green) & EX(EX(nsLight.currentState=Green)) & EX(EX(EX(nsLight.currentState=Green))))
 
 -- LIVELINESS
+-- The lights will eventually transition.
 SPEC AG(nsLight.currentState=Red -> AF(nsLight.currentState=Green))
 SPEC AG(nsLight.currentState=Green -> AF(nsLight.currentState=Red))
 SPEC AG(ewLight.currentState=Red -> AF(ewLight.currentState=Green))
 SPEC AG(ewLight.currentState=Green -> AF(ewLight.currentState=Red))
-
--- SAFETY
--- -- The lights can never both be green
-SPEC !AG(ewLight.currentState = Green & nsLight.currentState = Green)
--- -- Grandma has at least 3 seconds to cross
-SPEC AF(nsPedestrianSignal=TRUE & nsLight.currentState=Red -> EX(nsLight.currentState=Green) & EX(EX(nsLight.currentState=Green)) & EX(EX(EX(nsLight.currentState=Green))))
 
 -- The light will transition to yellow and eventually red if the perpendicular pedestian crosswalk button is pressed
 SPEC AG( (ewPedestrianSignal=TRUE & nsLight.currentState=Green) -> AX(nsLight.currentState=Yellow));
 SPEC AG( (nsPedestrianSignal=TRUE & ewLight.currentState=Green) -> AX(ewLight.currentState=Yellow));
 SPEC AG( (ewPedestrianSignal=TRUE & nsLight.currentState=Green) -> AF(nsLight.currentState=Red));
 SPEC AG( (nsPedestrianSignal=TRUE & ewLight.currentState=Green) -> AF(ewLight.currentState=Red));
+
+-- If a road is green, and the perpendicular walk sensor is triggered, the light will eventually transistion
+SPEC AG( ewLight.currentState = Green & nsPedestrianSignal = TRUE -> AF(nsLight.currentState = Green));
+SPEC AG( nsLight.currentState = Green & ewPedestrianSignal = TRUE -> AF(ewLight.currentState = Green));
+
+-- If a road is green, and the perpendicular loop sensor is triggered, the light will eventually transistion
+SPEC AG( ewLight.currentState = Green & nsLoopSignal = TRUE -> AF(nsLight.currentState = Green));
+SPEC AG( nsLight.currentState = Green & ewLoopSignal = TRUE -> AF(ewLight.currentState = Green));
+
+-- If a road is green, and the perpendicular EV sensor is triggered, the light will eventually transistion
+SPEC AG( ewLight.currentState = Green & nsEmergencyVehicleSignal = TRUE -> AF(nsLight.currentState = Green));
+SPEC AG( nsLight.currentState = Green & ewEmergencyVehicleSignal = TRUE -> AF(ewLight.currentState = Green));
+
+-- SAFETY
+-- The lights can never both be green
+SPEC !AG(ewLight.currentState = Green & nsLight.currentState = Green)
+
+-- Grandma is crossing EW and someone walking the opposite way presses the walk button, she has at least 3 time steps to get through the walk across.
+SPEC AG(nsPedestrianSignal=TRUE & ewLight.currentState = Green -> EX(ewLight.currentState=Yellow) & EX(EX(ewLight.currentState=Yellow)) & EX(EX(EX(ewLight.currentState=Yellow))))
+
+-- Grandma is crossing EW and if a car triggers the perpendicular loop sensor, she has at least 3 time steps to get through the walk across.
+SPEC AG(nsLoopSignal=TRUE & ewLight.currentState = Green -> EX(ewLight.currentState=Yellow) & EX(EX(ewLight.currentState=Yellow)) & EX(EX(EX(ewLight.currentState=Yellow))))
+
+-- Grandma is crossing EW and if an emergency vehicle triggers the perpendicular EV sensor, she has at least 3 time steps to get through the walk across.
+SPEC AG(nsEmergencyVehicleSignal=TRUE & ewLight.currentState = Green -> EX(ewLight.currentState=Yellow) & EX(EX(ewLight.currentState=Yellow)) & EX(EX(EX(ewLight.currentState=Yellow))))
