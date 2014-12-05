@@ -1,3 +1,4 @@
+
 ------------------------------------------------------------------------------------
 --  SENG 5801 - HW6 - Formal Street Light Model (NuSMV)
 ------------------------------------------------------------------------------------
@@ -7,48 +8,58 @@
 --
 --  This module responsible for managing state of a single light.
 ------------------------------------------------------------------------------------
-MODULE TrafficLight(name, otherLight, activeLight, pedestrianSignal)
+MODULE TrafficLight(name, activeLight, otherLight, activeLight, pedestrianSignal)
   VAR
     currentState : {Red, Yellow, Green};
-    timeout : 0..60;
+    greenTimer : 0..60;
+    yellowTimer : 0..10;
 
   ASSIGN
-    init(timeout) := 60;
+    init(greenTimer) := 60;
+    init(yellowTimer) := 10;
 
     -- 
     next(currentState) :=  
       case
-        -- Always be Red if the other light is Yellow or Green
-        otherLight = Yellow                       : Red;
+        -- Always read until active
+        activeLight != self                       : Red;
 
-        otherLight = Green                        : Red;
+        -- 
+        activeLight = self &
+        greenTimer = 60                           : Green;
 
-        -- Eventually Transition to Red if we are yellow
-        currentState = Yellow                     : Red;
+        activeLight = self &
+        greenTimer = 0 &
+        yellowTimer = 10                          : Yellow;
 
-        -- If pedestrian signal is recieved on the perpendicular crosswalk, transistion
-        currentState = Green &
-        pedestrianSignal = TRUE                   : Yellow;
-
-        -- When the timeout hits 0, transition to Yellow
-        timeout = 0                               : Yellow;
-
-        -- When the other signal is Red, we will turn green
-        otherLight = Red &
-        activeLight = name                        : Green;
+        activeLight = self 
 
         -- Default Case
         TRUE                                      : currentState;
       esac;
 
-    next(timeout) :=
+    next(greenTimer) :=
       case
-        timeout > 0 &
-        currentState = Green                      : timeout - 1;
+        activeLight = FALSE                          : 60;
 
-        timeout = 0                               : 60;
+        greenTimer > 0 &
+        currentState = Green                      : greenTimer - 1;
 
-        TRUE                                      : timeout;
+        greenTimer = 0                            : 60;
+
+        TRUE                                      : greenTimer;
+      esac;
+
+    next(yellowTimer):=
+      case
+        activeLight
+
+        yellowTimer > 0 &
+        currentState = Yellow                     : yellowTimer - 1;
+
+        yellowTimer = 0                           : 10;
+
+        TRUE                                      : yellowTimer;
       esac;
 
 
