@@ -1,10 +1,10 @@
-DROP TABLE git_object;
+DROP TABLE commit_commit_chain;
+DROP TABLE tree_entry;
 DROP TABLE commit_object;
 DROP TABLE tree_object;
 DROP TABLE blob_object;
-DROP TABLE commit_commit_chain;
 DROP TABLE content_graph_node;
-DROP TABLE tree_entry;
+DROP TABLE git_object;
 
 create table git_object
 (
@@ -52,18 +52,17 @@ create table commit_commit_chain
   constraint fk_parent_sha
     foreign key (parent_go_sha_hash)
     references commit_object(go_sha_hash),
-  constraint pk_ccc_parent primary key (parent_go_sha_hash),
   constraint fk_child_sha
     foreign key (child_go_sha_hash)
     references commit_object(go_sha_hash),
-  constraint pk_ccc_child primary key (child_go_sha_hash)
+  constraint pk_ccc primary key (parent_go_sha_hash, child_go_sha_hash)
 );
 
 create table content_graph_node
 (
-  cgnID number(10),
-  constraint pk_cgn_id primary key (cgnID)
-)
+  content_graph_id number(10),
+  constraint pk_cgn_id primary key (content_graph_id)
+);
 
 create table tree_entry
 (
@@ -73,9 +72,8 @@ create table tree_entry
   constraint fk_child_id
     foreign key (child_id)
     references content_graph_node(content_graph_id),
-  constraint pk_child_id primary key (child_id),
   constraint fk_parent_id
     foreign key (parent_id)
     references content_graph_node(content_graph_id),
-  constraint pk_parent_id primary key (parent_id)
+  constraint pk_parent_id primary key (parent_id, child_id)
 );
