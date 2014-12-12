@@ -12,3 +12,16 @@ Construction LDS
 
 http://erdraw.com/graphs/559423249542
 
+
+
+# Relational Algebra Examples (RAP)
+
+### Project
+### Reduce
+### Filter
+### Intersect
+### Union
+### Minus
+### Times
+### Group
+### Join
