@@ -1,3 +1,5 @@
 in_golf_scores_*.txt
 input_files/
-output_files/
+*course.rep*
+*golfer.rep*
+*trank.rep*
