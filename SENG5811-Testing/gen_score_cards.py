@@ -5,6 +5,9 @@ import os
 THIS_DIR = os.path.dirname(__file__)
 INPUT_FILE_DIR = os.path.join(THIS_DIR, 'input_files')
 OUTPUT_FILE_DIR = os.path.join(THIS_DIR, 'output_files')
+GOLFER_REPORT = os.path.join(os.getcwd(), 'golfer.rep')
+COURSE_REPORT = os.path.join(os.getcwd(), 'course.rep')
+TOURNAMENT_REPORT = os.path.join(os.getcwd(), 'trank.rep')
 
 PROG_INPUT = {
     'courses': {
@@ -78,7 +81,21 @@ def _gen_input_files(number):
             f.write('_\n')
 
 
+def _clean_reports():
+    if os.path.exists(GOLFER_REPORT):
+        print "Cleaning golfer report..."
+        os.remove(GOLFER_REPORT)
+
+    if os.path.exists(COURSE_REPORT):
+        print "Cleaning course report..."
+        os.remove(COURSE_REPORT)
+
+    if os.path.exists(TOURNAMENT_REPORT):
+        print "Cleaning tournament report..."
+        os.remove(TOURNAMENT_REPORT)
+
 def main():
+    _clean_reports()
     _gen_input_files(10)
 
 
