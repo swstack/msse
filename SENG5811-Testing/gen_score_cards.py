@@ -1,13 +1,17 @@
 #!/usr/bin/env python
 import random
 import os
+import shlex
+import subprocess
+import time
 
 THIS_DIR = os.path.dirname(__file__)
 INPUT_FILE_DIR = os.path.join(THIS_DIR, 'input_files')
-OUTPUT_FILE_DIR = os.path.join(THIS_DIR, 'output_files')
 GOLFER_REPORT = os.path.join(os.getcwd(), 'golfer.rep')
 COURSE_REPORT = os.path.join(os.getcwd(), 'course.rep')
 TOURNAMENT_REPORT = os.path.join(os.getcwd(), 'trank.rep')
+GOLFSCORE_BIN = os.path.join(THIS_DIR, 'golf_win32')
+
 
 PROG_INPUT = {
     'courses': {
@@ -94,9 +98,27 @@ def _clean_reports():
         print "Cleaning tournament report..."
         os.remove(TOURNAMENT_REPORT)
 
+
+def _run_golf_score():
+    root, dirs, files = os.walk(INPUT_FILE_DIR).next()
+    for input_file in files:
+        input_file_path = os.path.join(root, input_file)
+        command = "{} {} {}".format(GOLFSCORE_BIN, '-g', os.path.abspath(input_file_path))
+        print "Running golf score against {}".format(input_file)
+        time.sleep(2)
+        subprocess.check_output(shlex.split(command))
+        _validate_report()
+
+
+
+def _validate_report():
+    pass  # TODO: implement me
+
+
 def main():
     _clean_reports()
     _gen_input_files(10)
+    _run_golf_score()  # run and validate
 
 
 if __name__ == "__main__":
