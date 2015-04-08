@@ -1,0 +1,9 @@
+			 Golfer Report
+Bob                 		Rank:  2
+	Course ID: A	Raw score: 93	Ranking score: 17
+	Course ID: B	Raw score: 90	Ranking score: 21
+						TOTAL: 38
+Jim                 		Rank:  1
+	Course ID: A	Raw score: 93	Ranking score: 26
+	Course ID: B	Raw score: 90	Ranking score: 31
+						TOTAL: 57
