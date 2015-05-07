@@ -24,13 +24,13 @@ def cyclo9():
 
     for i in range(500):
 
-        if i and i > 100:
-            if i and i > 99:
-                if i and i > 98:
-                    if i and i > 97:
-                        if i and i > 96:
-                            if i and i > 95:
-                                if i and i > 94:
+        if i > 100:
+            if i > 99:
+                if i > 98:
+                    if i > 97:
+                        if i > 96:
+                            if i > 95:
+                                if i > 94:
                                     pass
 
 
