@@ -23,7 +23,9 @@ team members involed include:
 
 ## Semester 3
 
-* TBD
+* SENG 5851 - Software Project Management
+* SENG 5861 - Introduction to Software Architecture
+* SENG 5899 - Software Engineering Seminar
 
 ## Semester 4
 
